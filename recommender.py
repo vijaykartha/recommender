@@ -12,8 +12,20 @@ df = spark.read.csv(file_path, header=True, inferSchema=True)
 # Convert Unix Timestamp to regular date
 df = df.withColumn("Date", from_unixtime(col("Timestamp")))
 
-# Filter for the last month
-one_month_ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+# Ask the user for a date input
+user_input_date = input("Enter the reference date in YYYY-MM-DD format: ")
+
+# Convert the input string to a datetime object
+try:
+    reference_date = datetime.strptime(user_input_date, "%Y-%m-%d")
+except ValueError:
+    print("Invalid date format. Please enter the date in YYYY-MM-DD format.")
+    spark.stop()
+    exit()
+
+# Calculate the date one month before the user-provided date
+one_month_ago = (reference_date - timedelta(days=30)).strftime("%Y-%m-%d")
+
 filtered_df = df.filter(col("Date") >= one_month_ago)
 
 # Group by ProductId and calculate average rating
