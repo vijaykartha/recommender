@@ -1,3 +1,4 @@
+from pyspark.sql.functions import to_date, min, max
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_unixtime, avg
 from datetime import datetime, timedelta
@@ -6,7 +7,7 @@ spark = SparkSession.builder \
     .appName("Top Rated Products") \
     .getOrCreate()
 
-file_path = "D:\\VJ\\UM\\WQD7007\\'Final Project'\\product_reviews.csv" # Replace with your HDFS path
+file_path = "hdfs:///user/hive/warehouse/vijay.db/product_reviews/product_reviews.csv"  # Replace with your HDFS path
 df = spark.read.csv(file_path, header=True, inferSchema=True)
 
 # Convert Unix Timestamp to regular date
@@ -22,16 +23,22 @@ except ValueError:
     print("Invalid date format. Please enter the date in YYYY-MM-DD format.")
     spark.stop()
     exit()
-
 # Calculate the date one month before the user-provided date
 one_month_ago = (reference_date - timedelta(days=30)).strftime("%Y-%m-%d")
 
-filtered_df = df.filter(col("Date") >= one_month_ago)
+# Assuming 'Timestamp' is the column with Unix timestamp values
+df_with_dates = df.withColumn("ConvertedDate", to_date(from_unixtime("Timestamp")))
 
-# Group by ProductId and calculate average rating
-result_df = filtered_df.groupBy("ProductId").agg(avg("Rating").alias("AverageRating"))
+# Filter for the last month
+#one_month_ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+#filtered_df = df.filter(col("Date") >= one_month_ago)
 
-# Sort by AverageRating and get top 10
-top_products_df = result_df.orderBy(col("AverageRating").desc()).limit(10)
+# Filter based on the user-provided date
+filtered_df = df_with_dates.filter(col("ConvertedDate") >= one_month_ago)
 
-top_products_df.show()
+# Group by ProductId and ConvertedDate, then calculate average rating
+result_df = filtered_df.groupBy("ProductId", "ConvertedDate").agg(avg("Rating").alias("AverageRating"))
+
+# Sort by ProductId and AverageRating, and show the results
+sorted_df = result_df.orderBy(col("AverageRating").desc()).limit(10)
+sorted_df.show()
