@@ -42,3 +42,4 @@ result_df = filtered_df.groupBy("ProductId", "ConvertedDate").agg(avg("Rating").
 # Sort by ProductId and AverageRating, and show the results
 sorted_df = result_df.orderBy(col("AverageRating").desc()).limit(10)
 sorted_df.show()
+
