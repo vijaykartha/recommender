@@ -1,3 +1,6 @@
+from pyspark.sql.window import Window
+from pyspark.sql.functions import row_number
+from pyspark.sql.functions import rank
 from pyspark.sql.functions import to_date, min, max
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_unixtime, avg
@@ -29,17 +32,21 @@ one_month_ago = (reference_date - timedelta(days=30)).strftime("%Y-%m-%d")
 # Assuming 'Timestamp' is the column with Unix timestamp values
 df_with_dates = df.withColumn("ConvertedDate", to_date(from_unixtime("Timestamp")))
 
-# Filter for the last month
-#one_month_ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-#filtered_df = df.filter(col("Date") >= one_month_ago)
 
 # Filter based on the user-provided date
 filtered_df = df_with_dates.filter(col("ConvertedDate") >= one_month_ago)
 
-# Group by ProductId and ConvertedDate, then calculate average rating
-result_df = filtered_df.groupBy("ProductId", "ConvertedDate").agg(avg("Rating").alias("AverageRating"))
 
-# Sort by ProductId and AverageRating, and show the results
-sorted_df = result_df.orderBy(col("AverageRating").desc()).limit(10)
-sorted_df.show()
+result_df = filtered_df.groupBy("ProductType", "ProductId", "ConvertedDate")\
+    .agg(avg("Rating").alias("AverageRating"))
+
+# Define a window spec partitioned by ProductType and ordered by AverageRating
+windowSpec = Window.partitionBy("ProductType").orderBy(col("AverageRating").desc())
+
+# Apply the window spec to assign a row number
+result_df_with_row_number = result_df.withColumn("row_number", row_number().over(windowSpec))
+
+top_10_products_per_type_df = result_df_with_row_number.filter(col("row_number") <= 10)
+top_10_products_per_type_df.select("ProductType", "ProductId", "ConvertedDate", "AverageRating").show()
+
 
